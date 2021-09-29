@@ -1,0 +1,143 @@
+
+<!doctype html>
+<html lang="en-us">
+    <head>
+        <title>KWIK : javascript example</title>
+    </head>
+    <body>
+        <div id="main-container">
+            <b>KWIK PAY</b> prototype (using ggwave)
+
+            <br><br>
+
+            <div>Payment Amount:</div> <textarea name="textarea" id="payment_amount" style="width:200px;height:50px;"></textarea><br>
+			<div>Bank:</div> <textarea name="textarea" id="bank" style="width:200px;height:50px;"></textarea><br>
+			<div>AccountID:</div> <textarea name="textarea" id="account_id" style="width:200px;height:50px;"></textarea><br>
+
+            <button id="captureStart">Start capturing</button>
+            <button id="captureStop" hidden>Stop capturing</button>
+
+            <br><br>
+
+            <div class="cell-version">
+            </div>
+        </div>
+
+        <script type="text/javascript" src="ggwave.js"></script>
+        <script type='text/javascript'>
+            window.AudioContext = window.AudioContext || window.webkitAudioContext;
+            window.OfflineAudioContext = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+
+            var context = null;
+            var recorder = null;
+
+            // the ggwave module instance
+            var ggwave = null;
+            var parameters = null;
+            var instance = null;
+
+            // instantiate the ggwave instance
+            // ggwave_factory comes from the ggwave.js module
+            ggwave_factory().then(function(obj) {
+                ggwave = obj;
+            });
+
+            var account_id = document.getElementById("account_id");
+			var bank =  document.getElementById("bank");
+			var payment_amount =  document.getElementById("payment_amount");
+            var captureStart = document.getElementById("captureStart");
+            var captureStop = document.getElementById("captureStop");
+
+            // helper function
+            function convertTypedArray(src, type) {
+                var buffer = new ArrayBuffer(src.byteLength);
+                var baseView = new src.constructor(buffer).set(src);
+                return new type(buffer);
+            }
+
+            // initialize audio context and ggwave
+            function init() {
+                if (!context) {
+                    context = new AudioContext({sampleRate: 48000});
+
+                    parameters = ggwave.getDefaultParameters();
+                    parameters.sampleRateInp = context.sampleRate;
+                    parameters.sampleRateOut = context.sampleRate;
+                    instance = ggwave.init(parameters);
+                }
+            }
+
+
+            //
+            // Rx
+            //
+
+            captureStart.addEventListener("click", function () {
+                init();
+
+                let constraints = {
+                    audio: {
+                        // not sure if these are necessary to have
+                        echoCancellation: false,
+                        autoGainControl: false,
+                        noiseSuppression: false
+                    }
+                };
+
+                navigator.mediaDevices.getUserMedia(constraints).then(function (e) {
+                    mediaStream = context.createMediaStreamSource(e);
+
+                    var bufferSize = 16*1024;
+                    var numberOfInputChannels = 1;
+                    var numberOfOutputChannels = 1;
+
+                    if (context.createScriptProcessor) {
+                        recorder = context.createScriptProcessor(
+                                bufferSize,
+                                numberOfInputChannels,
+                                numberOfOutputChannels);
+                    } else {
+                        recorder = context.createJavaScriptNode(
+                                bufferSize,
+                                numberOfInputChannels,
+                                numberOfOutputChannels);
+                    }
+
+                    recorder.onaudioprocess = function (e) {
+                        var source = e.inputBuffer;
+                        var res = ggwave.decode(instance, convertTypedArray(new Float32Array(source.getChannelData(0)), Int8Array));
+						var resArray = res.split(",");
+                        if (res) {
+                            payment_amount.value = resArray[0];
+							bank.value = resArray[1];
+							account_id.value = resArray[2];							
+                        }
+
+                    }
+
+                    mediaStream.connect(recorder);
+                    recorder.connect(context.destination);
+                }).catch(function (e) {
+                    console.error(e);
+                });
+
+                payment_amount.value = 'Listening ...';
+                captureStart.hidden = true;
+                captureStop.hidden = false;
+            });
+
+            captureStop.addEventListener("click", function () {
+                if (recorder) {
+                    recorder.disconnect(context.destination);
+                    mediaStream.disconnect(recorder);
+                    recorder = null;
+                }
+
+                captureStart.hidden = false;
+                captureStop.hidden = true;
+            });
+
+            captureStop.click();
+        </script>
+    </body>
+</html>
