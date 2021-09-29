@@ -1,0 +1,95 @@
+
+<!doctype html>
+<html lang="en-us">
+    <head>
+        <title>KWIK : Project Sample</title>
+    </head>
+    <body>
+        <div id="main-container">
+            <b>KWIK RECEIVE</b> prototype (using ggwave)
+
+            <br><br>
+
+            <div>Request Amount:</div> <textarea name="textarea" id="request_amount" style="width:200px;height:50px;"></textarea><br>
+			<div>Bank:</div> <textarea name="textarea" id="bank" style="width:200px;height:50px;">Krungsri</textarea><br>
+			<div>AccountID:</div> <textarea name="textarea" id="account_id" style="width:200px;height:50px;"></textarea><br>
+            <button onclick="onSend();">Send</button>
+
+            <br><br>
+
+            <br><br>
+
+            <div class="cell-version">
+
+            </div>
+        </div>
+
+        <script type="text/javascript" src="ggwave.js"></script>
+        <script type='text/javascript'>
+            window.AudioContext = window.AudioContext || window.webkitAudioContext;
+            window.OfflineAudioContext = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+
+            var context = null;
+            var recorder = null;
+
+            // the ggwave module instance
+            var ggwave = null;
+            var parameters = null;
+            var instance = null;
+
+            // instantiate the ggwave instance
+            // ggwave_factory comes from the ggwave.js module
+            ggwave_factory().then(function(obj) {
+                ggwave = obj;
+            });
+
+
+            var account_id = document.getElementById("account_id");
+			var bank =  document.getElementById("bank");
+			var request_amount =  document.getElementById("request_amount");
+
+
+            // helper function
+            function convertTypedArray(src, type) {
+                var buffer = new ArrayBuffer(src.byteLength);
+                var baseView = new src.constructor(buffer).set(src);
+                return new type(buffer);
+            }
+
+            // initialize audio context and ggwave
+            function init() {
+                if (!context) {
+                    context = new AudioContext({sampleRate: 48000});
+
+                    parameters = ggwave.getDefaultParameters();
+                    parameters.sampleRateInp = context.sampleRate;
+                    parameters.sampleRateOut = context.sampleRate;
+                    instance = ggwave.init(parameters);
+                }
+            }
+
+            //
+            // Tx
+            //
+
+            function onSend() {
+                init();
+
+
+                // generate audio waveform
+                var output = [request_amount.value, bank.value, account_id.value].join()
+				var waveform = ggwave.encode(instance, output, ggwave.TxProtocolId.GGWAVE_TX_PROTOCOL_AUDIBLE_FAST, 10)
+				
+                // play audio
+                var buf = convertTypedArray(waveform, Float32Array);
+                var buffer = context.createBuffer(1, buf.length, context.sampleRate);
+                buffer.getChannelData(0).set(buf);
+                var source = context.createBufferSource();
+                source.buffer = buffer;
+                source.connect(context.destination);
+                source.start(0);
+            }
+           
+        </script>
+    </body>
+</html>
